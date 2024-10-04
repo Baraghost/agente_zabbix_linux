@@ -5,7 +5,7 @@ El script `instalar_agente_zabbix.sh` automatiza la instalación y configuració
 #### Comando de Instalación en 1 linea:
 
 ```bash
-curl -s https://raw.githubusercontent.com/Baraghost/agente_zabbix_linux/refs/heads/main/instalar_agente_zabbix.sh -o /tmp/instalar_zabbix.sh && chmod +x /tmp/instalar_zabbix.sh && sudo /tmp/instalar_zabbix.sh --zabbix_server 192.168.1.100 && rm /tmp/instalar_zabbix.sh
+curl -s https://raw.githubusercontent.com/Baraghost/agente_zabbix_linux/main/instalar_agente_zabbix.sh | sudo bash -s -- --zabbix_server 192.168.1.100
 ```
 
 **Importante:** Asegúrate de reemplazar la ip por la de tu Server de Zabbix.
