@@ -109,8 +109,22 @@ fi
 
 # Configurar el agente de Zabbix
 echo "Configurando el agente de Zabbix..."
-sudo sed -i "s/^Server=127.0.0.1/Server=$ZABBIX_SERVER_IP/" /etc/zabbix/zabbix_agentd.conf
-sudo sed -i "s/^ServerActive=127.0.0.1/ServerActive=$ZABBIX_SERVER_IP/" /etc/zabbix/zabbix_agentd.conf
+
+# Determinar la ubicación del archivo de configuración
+CONFIG_FILE=""
+if [ -f "/etc/zabbix/zabbix_agentd.conf" ]; then
+    CONFIG_FILE="/etc/zabbix/zabbix_agentd.conf"
+elif [ -f "/etc/zabbix_agentd.conf" ]; then
+    CONFIG_FILE="/etc/zabbix_agentd.conf"
+else
+    echo "Error: No se encontró el archivo de configuración de Zabbix."
+    exit 1
+fi
+
+echo "Archivo de configuración encontrado en: $CONFIG_FILE"
+
+sudo sed -i "s/^Server=127.0.0.1/Server=$ZABBIX_SERVER_IP/" "$CONFIG_FILE"
+sudo sed -i "s/^ServerActive=127.0.0.1/ServerActive=$ZABBIX_SERVER_IP/" "$CONFIG_FILE"
 
 # Iniciar y habilitar el servicio del agente de Zabbix
 echo "Iniciando el servicio del agente de Zabbix..."
