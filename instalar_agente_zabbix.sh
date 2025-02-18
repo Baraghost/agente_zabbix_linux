@@ -37,7 +37,6 @@ validar_ip() {
     local regex='^([0-9]{1,3}\.){3}[0-9]{1,3}$'
 
     if [[ $ip =~ $regex ]]; then
-        # Verificar que cada octeto esté entre 0 y 255
         IFS='.' read -r -a octetos <<< "$ip"
         for octeto in "${octetos[@]}"; do
             if (( octeto < 0 || octeto > 255 )); then
@@ -59,15 +58,14 @@ fi
 
 while [[ $# -gt 0 ]]; do
     key="$1"
-
     case $key in
         -h|--help)
             mostrar_ayuda
             ;;
         --zabbix_server)
             ZABBIX_SERVER_IP="$2"
-            shift # Salta el argumento actual
-            shift # Salta el valor del argumento
+            shift
+            shift
             ;;
         *)
             echo "Opción desconocida: $1"
@@ -76,36 +74,43 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Verificar que la IP del servidor Zabbix haya sido proporcionada
 if [[ -z "$ZABBIX_SERVER_IP" ]]; then
     echo "Error: La dirección IP del servidor Zabbix no ha sido especificada."
     mostrar_ayuda
 fi
 
-# Validar la dirección IP proporcionada
 validar_ip "$ZABBIX_SERVER_IP"
 
 echo "Dirección IP del servidor Zabbix proporcionada: $ZABBIX_SERVER_IP"
 
-# (Opcional) Detectar el nombre del host del sistema
-# HOSTNAME=$(hostname)
-# echo "Nombre del host detectado: $HOSTNAME"
+# Detectar el sistema operativo
+if [[ -f /etc/debian_version ]]; then
+    OS="Debian"
+elif [[ -f /etc/redhat-release ]]; then
+    OS="RedHat"
+else
+    echo "Sistema operativo no compatible."
+    exit 1
+fi
 
-# Actualizar la lista de paquetes e instalar el agente de Zabbix
-echo "Actualizando la lista de paquetes..."
-sudo apt update
-
-echo "Instalando el agente de Zabbix..."
-sudo apt install zabbix-agent -y
+# Instalar el agente de Zabbix según la distribución
+if [[ "$OS" == "Debian" ]]; then
+    echo "Actualizando la lista de paquetes..."
+    sudo apt update
+    echo "Instalando el agente de Zabbix..."
+    sudo apt install -y zabbix-agent
+elif [[ "$OS" == "RedHat" ]]; then
+    echo "Instalando el repositorio de Zabbix..."
+    sudo dnf install -y https://repo.zabbix.com/zabbix/6.0/rhel/$(rpm -E %rhel)/x86_64/zabbix-release-6.0-1.el$(rpm -E %rhel).noarch.rpm
+    sudo dnf clean all
+    echo "Instalando el agente de Zabbix..."
+    sudo dnf install -y zabbix-agent
+fi
 
 # Configurar el agente de Zabbix
 echo "Configurando el agente de Zabbix..."
 sudo sed -i "s/^Server=127.0.0.1/Server=$ZABBIX_SERVER_IP/" /etc/zabbix/zabbix_agentd.conf
 sudo sed -i "s/^ServerActive=127.0.0.1/ServerActive=$ZABBIX_SERVER_IP/" /etc/zabbix/zabbix_agentd.conf
-
-# (Opcional) Configurar el nombre del host en Zabbix
-# echo "Configurando el nombre del host en Zabbix..."
-# sudo sed -i "s/^# Hostname=/Hostname=$HOSTNAME/" /etc/zabbix/zabbix_agentd.conf
 
 # Iniciar y habilitar el servicio del agente de Zabbix
 echo "Iniciando el servicio del agente de Zabbix..."
@@ -113,30 +118,27 @@ sudo systemctl start zabbix-agent
 echo "Habilitando el servicio del agente de Zabbix para que inicie automáticamente al arrancar el sistema..."
 sudo systemctl enable zabbix-agent
 
-# Configurar el firewall para permitir el tráfico del agente de Zabbix
+# Configurar el firewall
 echo "Configurando el firewall para permitir el tráfico del agente de Zabbix..."
-if command -v csf &>/dev/null; then
-    # Si ConfigServer Firewall (lfd) está instalado
-    sudo csf -a "$ZABBIX_SERVER_IP"
-    echo "El agente de Zabbix ha sido instalado, configurado y se ha añadido una regla al firewall lfd."
-elif command -v ufw &>/dev/null; then
-    # Si UFW está instalado
-    sudo ufw allow from "$ZABBIX_SERVER_IP" to any port 10050
-    echo "El agente de Zabbix ha sido instalado, configurado y se ha añadido una regla al firewall UFW."
-elif command -v firewalld &>/dev/null; then
-    # Si firewalld está instalado
-    sudo firewall-cmd --permanent --add-rich-rule='rule family="ipv4" source address="'$ZABBIX_SERVER_IP'" port protocol="tcp" port="10050" accept'
+if command -v firewall-cmd &>/dev/null; then
+    sudo firewall-cmd --permanent --add-port=10050/tcp
     sudo firewall-cmd --reload
-    echo "El agente de Zabbix ha sido instalado, configurado y se ha añadido una regla al firewall firewalld."
-else
-    echo "Detección de firewall fallida. No se encontró un firewall compatible."
+    echo "Reglas de firewall aplicadas con firewalld."
+elif command -v ufw &>/dev/null; then
+    sudo ufw allow 10050/tcp
+    echo "Reglas de firewall aplicadas con UFW."\else
+    echo "No se detectó un firewall compatible."
 fi
 
-# Reiniciar el servicio del agente de Zabbix para aplicar los cambios
+# Reiniciar el servicio del agente de Zabbix
 echo "Reiniciando el servicio del agente de Zabbix para aplicar los cambios..."
 sudo systemctl restart zabbix-agent
 
 echo "=============================="
+echo "Proceso completado exitosamente."
+echo "Fecha y hora: $(date)"
+echo "=============================="
+
 echo "Proceso completado exitosamente."
 echo "Fecha y hora: $(date)"
 echo "=============================="
